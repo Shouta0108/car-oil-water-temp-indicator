@@ -1,91 +1,98 @@
 # car-oil-water-temp-indicator
 
-自動車向けの自作追加メーター（油温・水温計）。Raspberry Pi Pico (RP2040) と 3.5インチ ILI9486 ディスプレイを使い、アナログメーター風の **OIL TEMP / WATER TEMP** を2連で表示します。
+A DIY add-on gauge for cars that displays **oil temperature** and **water (coolant) temperature**. Built with a Raspberry Pi Pico (RP2040) and a 3.5-inch ILI9486 display, it renders two analog-style gauges — **WATER TEMP** and **OIL TEMP** — side by side.
 
-![ゲージ表示イメージ](docs/gauge.png)
+## Gallery
 
-> 表示イメージ画像（`docs/gauge.png`）は任意です。スクリーンショットを置く場合はこのパスに配置してください。
+### Display
 
-## 特徴
+![Dual analog gauges on the ILI9486 display](docs/display.jpg)
 
-- **2連アナログゲージ**: 水温（左）と油温（右）を1画面に並べて表示
-- **起動アニメーション**: 電源投入後、針が一往復するオープニング演出（約4.4秒）
-- **レッドゾーン警告**: 設定温度（既定 115 ℃）を超えるとゲージ外周が赤く点滅
-- **ブザー警報**: 警告温度で断続音、上限温度（130 ℃）超過で連続音
-- **平滑化フィルタ**: ADC 値・針角度に一次フィルタ（`FILTER_BETA = 0.05`）を掛けてちらつきを抑制
-- **デュアルコア駆動**: コア0でセンサー読み取り・状態管理、コア1で描画（`setup1` / `loop1`）
+### Wiring (breadboard prototype)
 
-## ハードウェア構成
+![Breadboard wiring with Pico, thermistor sender and series resistors](docs/wiring.jpg)
 
-| 部品 | 内容 |
+## Features
+
+- **Dual analog gauges** — water temperature (left) and oil temperature (right) on a single screen
+- **Startup animation** — the needles sweep once on power-up (about 4.4 s)
+- **Red-zone warning** — the outer ring flashes red when the temperature exceeds the configured limit (default 115 °C)
+- **Buzzer alarm** — intermittent beep in the warning zone, continuous tone above the upper limit (130 °C)
+- **Smoothing filter** — a first-order filter (`FILTER_BETA = 0.05`) on the ADC values and needle angle suppresses flicker
+- **Dual-core operation** — core 0 reads sensors and manages state, core 1 handles drawing (`setup1` / `loop1`)
+
+## Hardware
+
+| Part | Details |
 | --- | --- |
-| マイコン | Raspberry Pi Pico (RP2040) |
-| ディスプレイ | 3.5インチ ILI9486 SPI LCD（480×320 / 寸法 85.5×55.6 mm） |
-| 温度センサー | サーミスタ ×2（水温・油温）。10 kΩ 直列抵抗で分圧 |
-| 警報 | パッシブ／アクティブブザー |
+| MCU | Raspberry Pi Pico (RP2040) |
+| Display | 3.5-inch ILI9486 SPI LCD (480×320, 85.5 × 55.6 mm) |
+| Temperature sensors | 2× thermistor (water / oil), voltage-divided with a 10 kΩ series resistor |
+| Alarm | Passive / active buzzer |
 
-### サーミスタの定数（コード内の換算式）
+### Thermistor constants (as used in the code)
 
-`updateSensorData()` のスタインハート–ハート近似で以下を前提にしています。必要に応じて使用するサーミスタに合わせて調整してください。
+`updateSensorData()` uses a Steinhart–Hart approximation that assumes the following. Adjust these to match the thermistor you actually use.
 
-- 直列抵抗: 10 kΩ
-- 基準抵抗 R0: 11 kΩ（20 ℃時）
-- B 定数: 3500
+- Series resistor: 10 kΩ
+- Reference resistance R0: 11 kΩ (at 20 °C)
+- B constant: 3500
 
-## ピンアサイン
+## Pin assignment
 
-スケッチ内で定義しているピンは以下のとおりです（GPIO 番号）。
+The pins defined in the sketch (GPIO numbers):
 
-| 機能 | ピン | 定義 |
+| Function | Pin | Constant |
 | --- | --- | --- |
-| 水温センサー (ADC0) | GPIO 26 | `SENSOR_WATER` |
-| 油温センサー (ADC1) | GPIO 27 | `SENSOR_OIL` |
-| 切り替えスイッチ | GPIO 28 | `SW_PIN` |
-| ブザー | GPIO 20 | `BUZZER_PIN` |
-| LCD バックライト | GPIO 16 | `TFT_BL` |
+| Water temp sensor (ADC0) | GPIO 26 | `SENSOR_WATER` |
+| Oil temp sensor (ADC1) | GPIO 27 | `SENSOR_OIL` |
+| Toggle switch | GPIO 28 | `SW_PIN` |
+| Buzzer | GPIO 20 | `BUZZER_PIN` |
+| LCD backlight | GPIO 16 | `TFT_BL` |
 
-> ディスプレイの SPI ピン（MOSI / SCK / CS / DC / RST など）は **TFT_eSPI の `User_Setup.h`** 側で設定します。ILI9486 RPi LCD の端子は +5V / GND / DC / RST / CS / MOSI / SCK / MISO / T_CS（タッチ未使用時は 3.3V へ）。
+> The display's SPI pins (MOSI / SCK / CS / DC / RST, etc.) are configured on the **TFT_eSPI `User_Setup.h`** side. ILI9486 RPi LCD terminals: +5V / GND / DC / RST / CS / MOSI / SCK / MISO / T_CS (tie T_CS to 3.3 V when touch is unused).
 
-## 必要なライブラリ
+## Required library
 
-- [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI)（ILI9486 ドライバ・スプライト描画）
+- [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) — ILI9486 driver and sprite rendering
 
-`User_Setup.h`（または `User_Setup_Select.h`）で **ILI9486 ドライバ**・解像度・Pico の SPI ピンを有効化してください。フォントは同梱の `eurostile_extd_black_italic8pt7b.h` を使用します。
+In `User_Setup.h` (or `User_Setup_Select.h`), enable the **ILI9486 driver**, the resolution, and the Pico SPI pins. The custom font `eurostile_extd_black_italic8pt7b.h` (included) is used for the gauge labels.
 
-## ビルドと書き込み（Arduino IDE）
+## Build & flash (Arduino IDE)
 
-1. Arduino IDE に **Raspberry Pi Pico / RP2040** ボードパッケージ（earlephilhower 版）を追加
-2. TFT_eSPI ライブラリをインストールし、`User_Setup` を ILI9486 + Pico 用に設定
-3. ボードに「Raspberry Pi Pico」、適切なポートを選択
-4. `indicator_test.ino` を開いて書き込み
+1. Add the **Raspberry Pi Pico / RP2040** board package (earlephilhower core) to the Arduino IDE
+2. Install the TFT_eSPI library and configure `User_Setup` for ILI9486 + Pico
+3. Select the "Raspberry Pi Pico" board and the correct port
+4. Open `indicator_test.ino` and upload
 
-## ファイル構成
+## File structure
 
 ```
 indicator_test/
-├── indicator_test.ino                 # メインスケッチ（デュアルコア）
-├── eurostile_extd_black_italic8pt7b.h  # 表示用カスタムフォント (8pt)
-├── eurostile_extd_black_italic10pt7b.h # 表示用カスタムフォント (10pt)
+├── indicator_test.ino                  # Main sketch (dual-core)
+├── eurostile_extd_black_italic8pt7b.h   # Custom display font (8 pt)
+├── eurostile_extd_black_italic10pt7b.h  # Custom display font (10 pt)
+├── docs/                                # Images used in this README
 └── README.md
 ```
 
-## 主な設定値（スケッチ冒頭で変更可能）
+## Key settings (editable at the top of the sketch)
 
-| 定数 | 既定値 | 内容 |
+| Constant | Default | Description |
 | --- | --- | --- |
-| `WATER_REDZONE_TEMP` | 115.0 | 水温レッドゾーン開始温度 [℃] |
-| `OIL_REDZONE_TEMP` | 115.0 | 油温レッドゾーン開始温度 [℃] |
-| `MAX_GAUGE_TEMP` | 130.0 | ゲージ上限・連続警報温度 [℃] |
-| `FILTER_BETA` | 0.05 | 平滑化フィルタ係数（小さいほど滑らか） |
-| `CENTER_X` / `CENTER_X2` | 114 / 356 | 左右ゲージの中心 X 座標 |
+| `WATER_REDZONE_TEMP` | 115.0 | Water-temp red-zone start [°C] |
+| `OIL_REDZONE_TEMP` | 115.0 | Oil-temp red-zone start [°C] |
+| `MAX_GAUGE_TEMP` | 130.0 | Gauge maximum / continuous-alarm temperature [°C] |
+| `FILTER_BETA` | 0.05 | Smoothing-filter coefficient (smaller = smoother) |
+| `CENTER_X` / `CENTER_X2` | 114 / 356 | Center X of the left / right gauge |
 
-## 参考資料
+## References
 
-- [TMP36 を用いた温度の計測と LCD への表示 — 基礎からの IoT 入門](https://iot.keicode.com/arduino/temperature-tmp36.php)
-- [raspberry pi で車のメーターを作成する — Qiita](https://qiita.com/ototo/items/ddeff02151890e2f6046)
-- [File to C style array converter](https://notisrac.github.io/FileToCArray/)（画像→C配列変換。RGB565 / Big-endian / uint16_t）
-- 市販追加メーター寸法の目安: φ52 / φ60 mm、Defi advance ZD ディスプレイ 51.8×26.7 mm
+- [Measuring temperature with a TMP36 and showing it on an LCD — IoT basics (JP)](https://iot.keicode.com/arduino/temperature-tmp36.php)
+- [Building a car gauge with a Raspberry Pi — Qiita (JP)](https://qiita.com/ototo/items/ddeff02151890e2f6046)
+- [File to C style array converter](https://notisrac.github.io/FileToCArray/) (image → C array: RGB565 / big-endian / uint16_t)
+- Reference sizes for commercial add-on gauges: φ52 / φ60 mm; Defi advance ZD display 51.8 × 26.7 mm
 
-## メモ
+## Notes
 
-開発の経緯では MicroPython + Pico 向けに ILI9486 へ JPEG を描画するカスタムモジュール（`ili9486_jpg_display`）も検討しましたが、本リポジトリの最終形は **Arduino + TFT_eSPI** によるスプライト描画版です。
+During development, a MicroPython custom module for drawing JPEGs to the ILI9486 on the Pico (`ili9486_jpg_display`) was also explored, but the final form in this repository is the **Arduino + TFT_eSPI** sprite-rendering version.
